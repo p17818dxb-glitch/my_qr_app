@@ -1,5 +1,6 @@
 import os
 import qrcode
+from qrcode.image.pure import PyPNGImage
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.image import Image
@@ -8,20 +9,17 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.core.window import Window
 from kivy.utils import platform
-from android.permissions import request_permissions, Permission # type: ignore
 
 class QRGenApp(App):
     def build(self):
-        # 1. Ask for storage permissions on startup (Android only)
         if platform == 'android':
+            from android.permissions import request_permissions, Permission
             request_permissions([Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE])
 
-        # 2. Main Layout
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
-        Window.clearcolor = (1, 1, 1, 1)  # White background
+        Window.clearcolor = (1, 1, 1, 1)
 
-        # 3. Widgets
-        self.img = Image(source='icon.png', size_hint=(1, 2), allow_stretch=True) # Placeholder
+        self.img = Image(size_hint=(1, 2), allow_stretch=True)
         self.status_label = Label(text="Enter URL below", color=(0.2, 0.2, 0.2, 1), size_hint=(1, 0.2))
         self.url_input = TextInput(hint_text="Type text or URL here", multiline=False, size_hint=(1, 0.3))
         
@@ -32,7 +30,6 @@ class QRGenApp(App):
         self.save_btn.bind(on_press=self.save_qr)
         self.save_btn.disabled = True
 
-        # 4. Add widgets to layout
         self.layout.add_widget(self.img)
         self.layout.add_widget(self.status_label)
         self.layout.add_widget(self.url_input)
@@ -47,17 +44,18 @@ class QRGenApp(App):
             self.status_label.text = "Please enter text first!"
             return
 
-        # Generate QR
-        qr = qrcode.QRCode(box_size=10, border=4)
+        # Pure PNG factory completely bypasses Pillow requirements
+        qr = qrcode.QRCode(box_size=10, border=4, image_factory=PyPNGImage)
         qr.add_data(text)
         qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
+        img = qr.make_image()
         
-        # Save temp file for display
-        self.temp_path = "temp_qr.png"
-        img.save(self.temp_path)
+        # Save internally in private cache folder
+        self.temp_path = os.path.join(self.user_data_dir, "temp_qr.png") if platform == 'android' else "temp_qr.png"
         
-        # Update Image Widget
+        with open(self.temp_path, "wb") as f:
+            img.save(f)
+        
         self.img.source = self.temp_path
         self.img.reload()
         self.status_label.text = "Generated! Ready to save."
@@ -65,16 +63,10 @@ class QRGenApp(App):
 
     def save_qr(self, instance):
         try:
-            # Android-specific path to Downloads folder
-            download_path = "/storage/emulated/0/Download/my_qrcode.png"
-            
-            # If on PC (testing), save to current folder
-            if platform != 'android':
-                download_path = "saved_qrcode.png"
-
-            from shutil import copyfile
-            copyfile(self.temp_path, download_path)
-            self.status_label.text = f"Saved to:\n{download_path}"
+            download_path = "/storage/emulated/0/Download/my_qrcode.png" if platform == 'android' else "saved_qrcode.png"
+            import shutil
+            shutil.copyfile(self.temp_path, download_path)
+            self.status_label.text = f"Saved to Downloads!"
         except Exception as e:
             self.status_label.text = "Error: Check Permissions"
 
