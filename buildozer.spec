@@ -5,7 +5,7 @@ package.domain = org.test
 source.dir = .
 source.include_exts = py,png,jpg,kv,json,ico
 version = 0.1
-requirements = python3,kivy,qrcode,pillow
+requirements = python3,kivy,qrcode
 
 orientation = portrait
 fullscreen = 0
